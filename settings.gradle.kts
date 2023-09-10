@@ -8,6 +8,7 @@ pluginManagement {
         maven("https://maven.minecraftforge.net/")
         maven("https://repo.spongepowered.org/maven/")
         maven("https://repo.sk1er.club/repository/maven-releases/")
+        maven("https://repo.polyfrost.cc/releases")
     }
     resolutionStrategy {
         eachPlugin {
@@ -18,9 +19,9 @@ pluginManagement {
     }
 }
 
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version("0.6.0")
-}
+//plugins {
+//    id("org.gradle.toolchains.foojay-resolver-convention") version("0.6.0")
+//}
 
 
 rootProject.name = "ZestyAddons"

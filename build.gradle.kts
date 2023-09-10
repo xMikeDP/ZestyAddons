@@ -1,18 +1,25 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     idea
     java
     id("gg.essential.loom") version "0.10.0.+"
     id("dev.architectury.architectury-pack200") version "0.1.3"
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    kotlin("jvm") version "1.8.20"
 }
 
 //Constants:
 
-val baseGroup: String by project
-val mcVersion: String by project
-val version: String by project
-val mixinGroup = "$baseGroup.mixin"
-val modid: String by project
+group = "com.example.archloomtemplate"
+version = "0.0.1"
+
+//val baseGroup: String by project
+//val mcVersion: String by project
+//val version: String by project
+//val mixinGroup = "$baseGroup.mixin"
+//val modid: String by project
 
 // Toolchains:
 java {
@@ -27,22 +34,27 @@ loom {
             // If you don't want mixins, remove these lines
             property("mixin.debug", "true")
             property("asmhelper.verbose", "true")
-            arg("--tweakClass", "org.spongepowered.asm.launch.MixinTweaker")
+            arg("--tweakClass", "cc.polyfrost.oneconfig.loader.stage0.LaunchWrapperTweaker")
+            arg("--mixin", "mixins.dulkirmod.json")
         }
     }
     forge {
         pack200Provider.set(dev.architectury.pack200.java.Pack200Adapter())
         // If you don't want mixins, remove this lines
-        mixinConfig("mixins.$modid.json")
+        mixinConfig("mixins.zestyaddons.json")
     }
     // If you don't want mixins, remove these lines
     mixin {
-        defaultRefmapName.set("mixins.$modid.refmap.json")
+        defaultRefmapName.set("mixins.zestyaddons.refmap.json")
     }
 }
 
 sourceSets.main {
-    output.setResourcesDir(sourceSets.main.flatMap { it.java.classesDirectory })
+    output.setResourcesDir(file("$buildDir/classes/java/main"))
+}
+
+val packageLib by configurations.creating {
+    configurations.implementation.get().extendsFrom(this)
 }
 
 // Dependencies:
@@ -52,6 +64,8 @@ repositories {
     maven("https://repo.spongepowered.org/maven/")
     // If you don't want to log in with your real minecraft account, remove this line
     maven("https://pkgs.dev.azure.com/djtheredstoner/DevAuth/_packaging/public/maven/v1")
+    maven("https://repo.essential.gg/repository/maven-public/")
+    maven("https://repo.polyfrost.cc/releases")
 }
 
 val shadowImpl: Configuration by configurations.creating {
@@ -72,6 +86,19 @@ dependencies {
     // If you don't want to log in with your real minecraft account, remove this line
     runtimeOnly("me.djtheredstoner:DevAuth-forge-legacy:1.1.2")
 
+    // Basic OneConfig dependencies for legacy versions. See OneConfig example mod for more info
+    compileOnly("cc.polyfrost:oneconfig-1.8.9-forge:0.2.0-alpha+") // Should not be included in jar
+    // include should be replaced with a configuration that includes this in the jar
+    shadowImpl("cc.polyfrost:oneconfig-wrapper-launchwrapper:1.0.0-beta+") // Should be included in jar
+
+}
+
+// Configures our shadow/shade configuration, so we can
+// include some dependencies within our mod jar file.
+tasks.named<ShadowJar>("shadowJar") {
+    archiveClassifier.set("dev") // TODO: machete gets confused by the `dev` prefix.
+    configurations = listOf(shadowImpl)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 // Tasks:
@@ -79,26 +106,26 @@ dependencies {
 tasks.withType(JavaCompile::class) {
     options.encoding = "UTF-8"
 }
+tasks.withType<KotlinCompile> {
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+}
 
 tasks.withType(Jar::class) {
-    archiveBaseName.set(modid)
+    archiveBaseName.set("zestyaddons")
     manifest.attributes.run {
         this["FMLCorePluginContainsFMLMod"] = "true"
         this["ForceLoadAsMod"] = "true"
 
         // If you don't want mixins, remove these lines
-        this["TweakClass"] = "org.spongepowered.asm.launch.MixinTweaker"
-        this["MixinConfigs"] = "mixins.$modid.json"
+        this["TweakClass"] = "cc.polyfrost.oneconfig.loader.stage0.LaunchWrapperTweaker"
+        this["MixinConfigs"] = "mixins.zestyaddons.json"
     }
 }
 
 tasks.processResources {
-    inputs.property("version", project.version)
-    inputs.property("mcversion", mcVersion)
-    inputs.property("modid", modid)
-    inputs.property("mixinGroup", mixinGroup)
-
-    filesMatching(listOf("mcmod.info", "mixins.$modid.json")) {
+    filesMatching(listOf("mcmod.info", "mixins.zestyaddons.json")) {
         expand(inputs.properties)
     }
 
@@ -112,13 +139,13 @@ val remapJar by tasks.named<net.fabricmc.loom.task.RemapJarTask>("remapJar") {
     input.set(tasks.shadowJar.get().archiveFile)
 }
 
-tasks.jar {
-    archiveClassifier.set("without-deps")
-    destinationDirectory.set(layout.buildDirectory.dir("badjars"))
-}
+//tasks.jar {
+//    archiveClassifier.set("without-deps")
+//    destinationDirectory.set(layout.buildDirectory.dir("badjars"))
+//}
 
 tasks.shadowJar {
-    destinationDirectory.set(layout.buildDirectory.dir("badjars"))
+//    destinationDirectory.set(layout.buildDirectory.dir("badjars"))
     archiveClassifier.set("all-dev")
     configurations = listOf(shadowImpl)
     doLast {
@@ -128,8 +155,12 @@ tasks.shadowJar {
     }
 
     // If you want to include other dependencies and shadow them, you can relocate them in here
-    fun relocate(name: String) = relocate(name, "$baseGroup.deps.$name")
+    fun relocate(name: String) = relocate(name, "com.zestyaddons.deps.$name")
 }
 
+tasks.withType<Jar> { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }
+
 tasks.assemble.get().dependsOn(tasks.remapJar)
+
+idea { module { inheritOutputDirs = true } }
 
